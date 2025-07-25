@@ -1,0 +1,8 @@
+{
+    "name": "Communes et Aéroports",
+    "short_name": "Communes",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0056b3"
+}
