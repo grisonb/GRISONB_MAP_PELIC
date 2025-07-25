@@ -1,21 +1,22 @@
-// --- NOUVEAU CONTENU COMPLET POUR sw.js ---
+// --- NOUVEAU CONTENU COMPLET ET CORRIGÉ POUR sw.js ---
 
-const APP_CACHE_NAME = 'communes-app-cache-v25'; // Version 25 pour être sûr
+const APP_CACHE_NAME = 'communes-app-cache-v26'; // Version incrémentée
 const TILE_CACHE_NAME = 'communes-tile-cache-v9';
-const DATA_CACHE_NAME = 'communes-data-cache-v4'; // Version 4 pour être sûr
+const DATA_CACHE_NAME = 'communes-data-cache-v5'; // Version incrémentée
 
+// On utilise des chemins relatifs pour que ça fonctionne partout
 const APP_SHELL_URLS = [
-    '/', 
-    '/index.html', 
-    '/style.css', 
-    '/script.js',
-    '/leaflet.min.js', 
-    '/leaflet.css', 
-    '/manifest.json'
+    './', 
+    './index.html', 
+    './style.css', 
+    './script.js',
+    './leaflet.min.js', 
+    './leaflet.css', 
+    './manifest.json'
 ];
 
 const DATA_URLS = [
-    '/communes.json' // On met en cache le fichier local
+    './communes.json' // Chemin relatif
 ];
 
 self.addEventListener('install', event => {
