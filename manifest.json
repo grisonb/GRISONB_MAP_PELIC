@@ -1,7 +1,7 @@
 {
     "name": "Communes et Aéroports",
     "short_name": "Communes",
-    "start_url": "/index.html",
+    "start_url": "https://grisonb.github.io/3_Pelic/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#0056b3"
