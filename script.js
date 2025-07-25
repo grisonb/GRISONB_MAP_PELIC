@@ -85,14 +85,86 @@ const SearchToggleControl = L.Control.extend({
 
     // ... (le reste du script.js est identique à la version 'v16')
     const searchSection = document.getElementById('search-section'); const statusMessage = document.getElementById('status-message'); const searchInput = document.getElementById('search-input'); const clearSearchBtn = document.getElementById('clear-search'); const airportCountInput = document.getElementById('airport-count'); const resultsList = document.getElementById('results-list'); const offlineStatus = document.getElementById('offline-status');
-    const toRad = deg => deg * Math.PI / 180; const toDeg = rad => rad * 180 / Math.PI; const simplifyString = str => typeof str !== 'string' ? '' : str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, ''); const calculateDistanceInNm = (lat1, lon1, lat2, lon2) => { const R = 6371; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return (R * c) / 1.852; }; const calculateMagneticHeading = trueBearing => (trueBearing - MAGNETIC_DECLINATION + 360) % 360; const convertToDMM = (deg, type) => { if (deg === null || isNaN(deg)) return 'N/A'; const absDeg = Math.abs(deg); const degrees = Math.floor(absDeg); const minutesTotal = (absDeg - degrees) * 60; const minutesFormatted = minutesTotal.toFixed(2).padStart(5, '0'); let direction = type === 'lat' ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W'); return `${degrees}° ${minutesFormatted}' ${direction}`; }; const levenshteinDistance = (a, b) => { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min(matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator); } return matrix[b.length][a.length]; };
+    const toRad = deg => deg * Math.PI / 180; const toDeg = rad => rad * 180 / Math.PI; const simplifyString = str => typeof str !== 'string' ? '' : str.toLowerCase().replace(/\bst\b/g, 'saint').normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, ''); const calculateDistanceInNm = (lat1, lon1, lat2, lon2) => { const R = 6371; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return (R * c) / 1.852; }; const calculateMagneticHeading = trueBearing => (trueBearing - MAGNETIC_DECLINATION + 360) % 360; const convertToDMM = (deg, type) => { if (deg === null || isNaN(deg)) return 'N/A'; const absDeg = Math.abs(deg); const degrees = Math.floor(absDeg); const minutesTotal = (absDeg - degrees) * 60; const minutesFormatted = minutesTotal.toFixed(2).padStart(5, '0'); let direction = type === 'lat' ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W'); return `${degrees}° ${minutesFormatted}' ${direction}`; }; const levenshteinDistance = (a, b) => { const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null)); for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; } for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; } for (let j = 1; j <= b.length; j += 1) for (let i = 1; i <= a.length; i += 1) { const indicator = a[i - 1] === b[j - 1] ? 0 : 1; matrix[j][i] = Math.min(matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator); } return matrix[b.length][a.length]; };
     const loadState = () => { const savedDisabled = localStorage.getItem('disabled_airports'); if (savedDisabled) disabledAirports = new Set(JSON.parse(savedDisabled)); const savedWater = localStorage.getItem('water_airports'); if (savedWater) waterAirports = new Set(JSON.parse(savedWater)); }; const saveState = () => { localStorage.setItem('disabled_airports', JSON.stringify([...disabledAirports])); localStorage.setItem('water_airports', JSON.stringify([...waterAirports])); }; window.toggleAirport = (oaci) => { if (disabledAirports.has(oaci)) disabledAirports.delete(oaci); else { disabledAirports.add(oaci); waterAirports.delete(oaci); } saveState(); refreshUI(); }; window.toggleWater = (oaci) => { if (waterAirports.has(oaci)) waterAirports.delete(oaci); else { waterAirports.add(oaci); disabledAirports.delete(oaci); } saveState(); refreshUI(); };
-    async function initializeApp() { loadState(); try { const response = await fetch('./communes.json'); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (!data || !data.data) throw new Error("Format JSON invalide."); allCommunes = data.data.map(c => ({ ...c, normalized_name: simplifyString(c.nom_standard) })); statusMessage.style.display = 'none'; searchSection.style.display = 'block'; initMap(); } catch (error) { statusMessage.textContent = `❌ Erreur: ${error.message}`; } }
+    async function initializeApp() {
+    loadState();
+    try {
+        const response = await fetch('./communes.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!data || !data.data) throw new Error("Format JSON invalide.");
+        
+        // Pré-traitement des données pour une recherche plus intelligente
+        allCommunes = data.data.map(c => {
+            const normalized_name = simplifyString(c.nom_standard);
+            // On crée une liste de "mots de recherche" pour chaque commune
+            const search_parts = c.nom_standard.toLowerCase().replace(/\bst\b/g, 'saint').normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/);
+            return { ...c, normalized_name, search_parts };
+        });
+        
+        statusMessage.style.display = 'none';
+        searchSection.style.display = 'block';
+        initMap();
+    } catch (error) {
+        statusMessage.textContent = `❌ Erreur: ${error.message}`;
+    }
+}
     initializeApp();
     function initMap() { if (map) return; map = L.map('map', { attributionControl: false, zoomControl: false }).setView([46.6, 2.2], 5.5); L.control.zoom({ position: 'bottomright' }).addTo(map); searchToggleControl = new SearchToggleControl().addTo(map); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map); permanentAirportLayer = L.layerGroup().addTo(map); routesLayer = L.layerGroup().addTo(map); drawPermanentAirportMarkers(); }
     function drawPermanentAirportMarkers() { permanentAirportLayer.clearLayers(); airports.forEach(airport => { const isDisabled = disabledAirports.has(airport.oaci); const isWater = waterAirports.has(airport.oaci); let iconClass = 'custom-marker-icon airport-marker-base '; let iconHTML = '✈️'; if (isDisabled) { iconClass += 'airport-marker-disabled'; iconHTML = '<b>+</b>'; } else if (isWater) { iconClass += 'airport-marker-water'; iconHTML = '💧'; } else { iconClass += 'airport-marker-active'; } const icon = L.divIcon({ className: iconClass, html: iconHTML }); const marker = L.marker([airport.lat, airport.lon], { icon: icon }); const disableButtonText = isDisabled ? 'Activer' : 'Désactiver'; const disableButtonClass = isDisabled ? 'enable-btn' : 'disable-btn'; marker.bindPopup(`<div class="airport-popup"><b>${airport.oaci}</b><br>${airport.name}<div class="popup-buttons"><button class="water-btn" onclick="window.toggleWater('${airport.oaci}')">Eau</button><button class="${disableButtonClass}" onclick="window.toggleAirport('${airport.oaci}')">${disableButtonText}</button></div></div>`); marker.addTo(permanentAirportLayer); }); }
     function refreshUI() { drawPermanentAirportMarkers(); if (currentCommune) displayCommuneDetails(currentCommune, false); }
-    searchInput.addEventListener('input', () => { const simplifiedSearch = simplifyString(searchInput.value); clearSearchBtn.style.display = simplifiedSearch.length > 0 ? 'block' : 'none'; if (simplifiedSearch.length < 3) { resultsList.style.display = 'none'; return; } const results = allCommunes.map(c => { let score; if (c.normalized_name === simplifiedSearch) score = 0; else if (c.normalized_name.startsWith(simplifiedSearch)) score = 1; else if (c.normalized_name.includes(simplifiedSearch)) score = 2; else { const dist = levenshteinDistance(simplifiedSearch, c.normalized_name); score = dist <= Math.floor(simplifiedSearch.length / 4) + 1 ? 3 + dist : 999; } return { ...c, score }; }).filter(c => c.score < 999).sort((a, b) => a.score - b.score || a.nom_standard.length - b.nom_standard.length); displayResults(results.slice(0, 10)); });
+    searchInput.addEventListener('input', () => {
+    const rawSearch = searchInput.value;
+    clearSearchBtn.style.display = rawSearch.length > 0 ? 'block' : 'none';
+
+    let departmentFilter = null;
+    let searchTerm = rawSearch;
+    const depRegex = /\s(\d{1,3}|2A|2B)$/i;
+    const match = rawSearch.match(depRegex);
+
+    if (match) {
+        departmentFilter = match[1].length === 1 ? '0' + match[1] : match[1].toUpperCase();
+        searchTerm = rawSearch.substring(0, match.index).trim();
+    }
+
+    const simplifiedSearch = simplifyString(searchTerm);
+
+    if (simplifiedSearch.length < 3) {
+        resultsList.style.display = 'none';
+        return;
+    }
+
+    const communesToSearch = departmentFilter
+        ? allCommunes.filter(c => c.dep_code === departmentFilter)
+        : allCommunes;
+
+    const scoredResults = communesToSearch.map(c => {
+        let score;
+
+        // Scores de base (rapides et prioritaires)
+        if (c.normalized_name === simplifiedSearch) score = 0;
+        else if (c.normalized_name.startsWith(simplifiedSearch)) score = 1;
+        else if (c.normalized_name.includes(simplifiedSearch)) score = 2;
+        else {
+            // NOUVELLE LOGIQUE : Recherche par mot avec Levenshtein
+            const wordDistances = c.search_parts.map(part => levenshteinDistance(simplifiedSearch, part));
+            const minWordDist = Math.min(...wordDistances);
+
+            if (minWordDist <= Math.floor(simplifiedSearch.length / 3) + 1) {
+                score = 3 + minWordDist; // Excellent score si un mot correspond
+            } else {
+                score = 999; // Sinon, le score est mauvais
+            }
+        }
+        return { ...c, score };
+    }).filter(c => c.score < 999);
+
+    // On trie par score, puis par pertinence (longueur du nom)
+    scoredResults.sort((a, b) => a.score - b.score || a.nom_standard.length - b.nom_standard.length);
+
+    displayResults(scoredResults.slice(0, 10));
+});
     clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; resultsList.style.display = 'none'; clearSearchBtn.style.display = 'none'; routesLayer.clearLayers(); currentCommune = null; map.setView([46.6, 2.2], 5.5); });
     function displayResults(results) { resultsList.innerHTML = ''; if (results.length > 0) { resultsList.style.display = 'block'; results.forEach(c => { const li = document.createElement('li'); li.textContent = `${c.nom_standard} (${c.dep_nom} - ${c.dep_code})`; // NOUVEAU BLOC À METTRE À LA PLACE
 li.addEventListener('click', () => {
