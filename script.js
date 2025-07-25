@@ -288,7 +288,24 @@ function displayCommuneDetails(commune, shouldFitBounds = true) {
         drawRoute([lat, lon], [ap.lat, ap.lon], ap.oaci);
     });
     
-    if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
+    // <<<=== BLOC DE GÉOLOCALISATION RESTAURÉ CI-DESSOUS ===>>>
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const { latitude: userLat, longitude: userLon } = pos.coords;
+                allPoints.push([userLat, userLon]);
+                const userIcon = L.divIcon({ className: 'custom-marker-icon user-marker', html: '👤' });
+                L.marker([userLat, userLon], { icon: userIcon }).bindPopup('Votre position').addTo(routesLayer);
+                drawRoute([userLat, userLon], [lat, lon], null, true); // Le fameux trait rouge
+                if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
+            },
+            () => { // En cas de refus ou d'erreur de géolocalisation
+                if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
+            }
+        );
+    } else { // Si le navigateur ne supporte pas la géolocalisation
+        if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
+    }
 }
 
 function drawRoute(startLatLng, endLatLng, oaci = null, isUserRoute = false) {
@@ -403,7 +420,7 @@ const SearchToggleControl = L.Control.extend({
         this.toggleButton.href = '#';
         this.communeDisplay = L.DomUtil.create('div', 'commune-display-control', topBar);
         const versionDisplay = L.DomUtil.create('div', 'version-display', mainContainer);
-        versionDisplay.innerText = 'v1.0 beta';
+        versionDisplay.innerText = 'v1.1 beta'; // <<<=== VERSION MISE À JOUR ICI ===>>>
         L.DomEvent.disableClickPropagation(mainContainer);
         L.DomEvent.on(this.toggleButton, 'click', L.DomEvent.stop);
         L.DomEvent.on(this.toggleButton, 'click', () => {
@@ -433,7 +450,7 @@ function soundex(s) {
     if (!s) return '';
     const a = s.toLowerCase().split('');
     const f = a.shift();
-    if (!f) return ''; // Protection si la chaîne est vide
+    if (!f) return '';
     let r = '';
     const codes = {
         a: '', e: '', i: '', o: '', u: '',
