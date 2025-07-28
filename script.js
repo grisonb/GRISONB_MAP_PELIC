@@ -2,9 +2,8 @@
 // INITIALISATION DE L'APPLICATION
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Correction : Leaflet n'est plus utilisé, on vérifie maplibregl et protomaps
-    if (typeof maplibregl === 'undefined' || typeof protomaps === 'undefined') {
-        document.getElementById('status-message').textContent = "❌ ERREUR : maplibre-gl.js ou protomaps.min.js non chargé.";
+    if (typeof L === 'undefined') {
+        document.getElementById('status-message').textContent = "❌ ERREUR : leaflet.min.js non chargé.";
         return;
     }
     initializeApp();
@@ -14,497 +13,454 @@ document.addEventListener('DOMContentLoaded', () => {
 // VARIABLES GLOBALES
 // =========================================================================
 let allCommunes = [];
-let map; // Sera un objet MapLibre
-let searchToggleControl;
+let map;
+let permanentAirportLayer;
+let routesLayer;
 let currentCommune = null;
 let disabledAirports = new Set();
 let waterAirports = new Set();
-let dynamicMarkers = []; // Lignes et tooltips
-let permanentMarkers = []; // Marqueurs de commune et aéroports
-let fireMarker = null;
+let searchToggleControl;
+const MAGNETIC_DECLINATION = 1.0;
 
 const airports = [
-    { oaci: "LFLU", name: "Valence-Chabeuil", lat: 44.920, lon: 4.968 }, { oaci: "LFMU", name: "Béziers-Vias", lat: 43.323, lon: 3.354 },
-    { oaci: "LFJR", name: "Angers-Marcé", lat: 47.560, lon: -0.312 }, { oaci: "LFHO", name: "Aubenas-Ardèche Méridionale", lat: 44.545, lon: 4.385 },
-    { oaci: "LFLX", name: "Châteauroux-Déols", lat: 46.861, lon: 1.720 }, { oaci: "LFBM", name: "Mont-de-Marsan", lat: 43.894, lon: -0.509 },
-    { oaci: "LFBL", name: "Limoges-Bellegarde", lat: 45.862, lon: 1.180 }, { oaci: "LFAQ", name: "Albert-Bray", lat: 49.972, lon: 2.698 },
-    { oaci: "LFBP", name: "Pau-Pyrénées", lat: 43.380, lon: -0.418 }, { oaci: "LFTH", name: "Toulon-Hyères", lat: 43.097, lon: 6.146 },
-    { oaci: "LFSG", name: "Épinal-Mirecourt", lat: 48.325, lon: 6.068 }, { oaci: "LFKC", name: "Calvi-Sainte-Catherine", lat: 42.530, lon: 8.793 },
-    { oaci: "LFMD", name: "Cannes-Mandelieu", lat: 43.542, lon: 6.956 }, { oaci: "LFKB", name: "Bastia-Poretta", lat: 42.552, lon: 9.483 },
-    { oaci: "LFMH", name: "Saint-Étienne-Bouthéon", lat: 45.541, lon: 4.296 }, { oaci: "LFKF", name: "Figari-Sud-Corse", lat: 41.500, lon: 9.097 },
-    { oaci: "LFCC", name: "Cahors-Lalbenque", lat: 44.351, lon: 1.475 }, { oaci: "LFML", name: "Marseille-Provence", lat: 43.436, lon: 5.215 },
-    { oaci: "LFKJ", name: "Ajaccio-Napoléon-Bonaparte", lat: 41.923, lon: 8.802 }, { oaci: "LFMK", name: "Carcassonne-Salvaza", lat: 43.215, lon: 2.306 },
-    { oaci: "LFRV", name: "Vannes-Meucon", lat: 47.720, lon: -2.721 }, { oaci: "LFTW", name: "Nîmes-Garons", lat: 43.757, lon: 4.416 },
-    { oaci: "LFMP", name: "Perpignan-Rivesaltes", lat: 42.740, lon: 2.870 }, { oaci: "LFBD", name: "Bordeaux-Mérignac", lat: 44.828, lon: -0.691 }
+    { oaci: "LFLU", name: "Valence-Chabeuil", lat: 44.920, lon: 4.968 },
+    { oaci: "LFMU", name: "Béziers-Vias", lat: 43.323, lon: 3.354 },
+    { oaci: "LFJR", name: "Angers-Marcé", lat: 47.560, lon: -0.312 },
+    { oaci: "LFHO", name: "Aubenas-Ardèche Méridionale", lat: 44.545, lon: 4.385 },
+    { oaci: "LFLX", name: "Châteauroux-Déols", lat: 46.861, lon: 1.720 },
+    { oaci: "LFBM", name: "Mont-de-Marsan", lat: 43.894, lon: -0.509 },
+    { oaci: "LFBL", name: "Limoges-Bellegarde", lat: 45.862, lon: 1.180 },
+    { oaci: "LFAQ", name: "Albert-Bray", lat: 49.972, lon: 2.698 },
+    { oaci: "LFBP", name: "Pau-Pyrénées", lat: 43.380, lon: -0.418 },
+    { oaci: "LFTH", name: "Toulon-Hyères", lat: 43.097, lon: 6.146 },
+    { oaci: "LFSG", name: "Épinal-Mirecourt", lat: 48.325, lon: 6.068 },
+    { oaci: "LFKC", name: "Calvi-Sainte-Catherine", lat: 42.530, lon: 8.793 },
+    { oaci: "LFMD", name: "Cannes-Mandelieu", lat: 43.542, lon: 6.956 },
+    { oaci: "LFKB", name: "Bastia-Poretta", lat: 42.552, lon: 9.483 },
+    { oaci: "LFMH", name: "Saint-Étienne-Bouthéon", lat: 45.541, lon: 4.296 },
+    { oaci: "LFKF", name: "Figari-Sud-Corse", lat: 41.500, lon: 9.097 },
+    { oaci: "LFCC", name: "Cahors-Lalbenque", lat: 44.351, lon: 1.475 },
+    { oaci: "LFML", name: "Marseille-Provence", lat: 43.436, lon: 5.215 },
+    { oaci: "LFKJ", name: "Ajaccio-Napoléon-Bonaparte", lat: 41.923, lon: 8.802 },
+    { oaci: "LFMK", name: "Carcassonne-Salvaza", lat: 43.215, lon: 2.306 },
+    { oaci: "LFRV", name: "Vannes-Meucon", lat: 47.720, lon: -2.721 },
+    { oaci: "LFTW", name: "Nîmes-Garons", lat: 43.757, lon: 4.416 },
+    { oaci: "LFMP", name: "Perpignan-Rivesaltes", lat: 42.740, lon: 2.870 },
+    { oaci: "LFBD", name: "Bordeaux-Mérignac", lat: 44.828, lon: -0.691 }
 ];
 
-// NOUVEAU : Constante pour la déclinaison magnétique approximative en France
-const MAGNETIC_DECLINATION_FRANCE = 1; // Approx. 1° Est pour la France métropolitaine (2024). Est est positif.
+// =========================================================================
+// FONCTIONS UTILITAIRES
+// =========================================================================
 
 const toRad = deg => deg * Math.PI / 180;
-const toDeg = rad => rad * 180 / Math.PI; // NOUVEAU : Utilitaire pour convertir les radians en degrés
-const simplifyString = str => typeof str !== 'string' ? '' : str.toLowerCase().replace(/\bst\b/g, 'saint').normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, ' ');
-const calculateDistanceInNm = (lat1, lon1, lat2, lon2) => { const R = 6371; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return (R * c) / 1.852; };
+const toDeg = rad => rad * 180 / Math.PI;
 
-// NOUVEAU : Fonction pour calculer le cap vrai (True Bearing)
-/**
- * Calcule le cap initial (route vraie) entre deux points géographiques.
- * @returns {number} Le cap en degrés (0-360).
- */
-function calculateBearing(lat1, lon1, lat2, lon2) {
-    const φ1 = toRad(lat1);
-    const φ2 = toRad(lat2);
-    const λ1 = toRad(lon1);
-    const λ2 = toRad(lon2);
+const simplifyString = str => typeof str !== 'string' ? '' : str
+    .toLowerCase()
+    .replace(/\bst\b/g, 'saint')
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 
-    const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
-    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
-    const θ = Math.atan2(y, x);
+const calculateDistanceInNm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c) / 1.852;
+};
 
-    return (toDeg(θ) + 360) % 360; // Normalise sur 0-360
-}
+const convertToDMM = (deg, type) => {
+    if (deg === null || isNaN(deg)) return 'N/A';
+    const absDeg = Math.abs(deg);
+    const degrees = Math.floor(absDeg);
+    const minutesTotal = (absDeg - degrees) * 60;
+    const minutesFormatted = minutesTotal.toFixed(2).padStart(5, '0');
+    let direction = type === 'lat' ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
+    return `${degrees}° ${minutesFormatted}' ${direction}`;
+};
 
-// NOUVEAU : Fonction pour calculer la route magnétique
-/**
- * Calcule la route magnétique en appliquant une déclinaison fixe.
- * @returns {number} La route magnétique en degrés (0-360).
- */
-function calculateMagneticHeading(lat1, lon1, lat2, lon2) {
-    const trueBearing = calculateBearing(lat1, lon1, lat2, lon2);
-    // Route Magnétique = Route Vraie - Déclinaison Est (+), ou + Déclinaison Ouest (-)
-    // "East is least, West is best"
-    let magneticHeading = trueBearing - MAGNETIC_DECLINATION_FRANCE;
-    return (magneticHeading + 360) % 360; // Normalise sur 0-360
-}
+const levenshteinDistance = (a, b) => {
+    const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+    for (let i = 0; i <= a.length; i += 1) { matrix[0][i] = i; }
+    for (let j = 0; j <= b.length; j += 1) { matrix[j][0] = j; }
+    for (let j = 1; j <= b.length; j += 1) for (let i = 1; i <= a.length; i += 1) {
+        const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(matrix[j][i - 1] + 1, matrix[j - 1][i] + 1, matrix[j - 1][i - 1] + indicator);
+    }
+    return matrix[b.length][a.length];
+};
 
+// =========================================================================
+// LOGIQUE PRINCIPALE DE L'APPLICATION
+// =========================================================================
 
 async function initializeApp() {
     const statusMessage = document.getElementById('status-message');
     const searchSection = document.getElementById('search-section');
     loadState();
     try {
-        const response = await fetch('https://map-assets.s3.amazonaws.com/communes.json');
-        if (!response.ok) throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        const response = await fetch('./communes.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (!data || !data.data) throw new Error("Format JSON invalide.");
-        allCommunes = data.data.map(c => ({...c, normalized_name: simplifyString(c.nom_standard)}));
+
+        allCommunes = data.data.map(c => {
+            const normalized_name = simplifyString(c.nom_standard);
+            const search_parts = normalized_name.split(' ').filter(Boolean);
+            const soundex_parts = search_parts.map(part => soundex(part));
+            return { ...c, normalized_name, search_parts, soundex_parts };
+        });
+
         statusMessage.style.display = 'none';
         searchSection.style.display = 'block';
         initMap();
         setupEventListeners();
     } catch (error) {
-        statusMessage.textContent = `❌ Erreur de chargement des données: ${error.message}`;
-        console.error(error);
-        checkOfflineStatus();
+        statusMessage.textContent = `❌ Erreur: ${error.message}`;
     }
 }
 
 function initMap() {
-    map = new maplibregl.Map({
-        container: 'map',
-        style: './style.json',
-        center: [2.3522, 48.8566],
-        zoom: 5,
-        minZoom: 4,
-        maxZoom: 14,
-        dragRotate: true,
-        pitchWithRotate: true
-    });
-
-    map.on('load', () => {
-        addPermanentMarkers();
-        checkOfflineStatus();
-        map.addControl(new maplibregl.NavigationControl());
-        
-        // Custom control to toggle search UI visibility
-        class SearchToggleControl {
-            onAdd(map) {
-                this._map = map;
-                this._container = document.createElement('div');
-                this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group search-toggle-container';
-                this._container.innerHTML = `
-                    <button class="search-toggle-button" title="Afficher/Masquer la recherche">🔍</button>
-                    <div class="commune-display-control"></div>
-                    <div class="version-display">v1.1</div>`;
-                
-                this._toggleButton = this._container.querySelector('.search-toggle-button');
-                this._communeDisplay = this._container.querySelector('.commune-display-control');
-                
-                this._toggleButton.addEventListener('click', () => {
-                    const ui = document.getElementById('ui-overlay');
-                    ui.style.display = (ui.style.display === 'none') ? 'block' : 'none';
-                });
-
-                return this._container;
-            }
-            onRemove() {
-                this._container.parentNode.removeChild(this._container);
-                this._map = undefined;
-            }
-            updateCommuneName(name) {
-                if (name) {
-                    this._communeDisplay.textContent = name;
-                    this._communeDisplay.style.display = 'block';
-                } else {
-                    this._communeDisplay.style.display = 'none';
-                }
-            }
-        }
-        searchToggleControl = new SearchToggleControl();
-        map.addControl(searchToggleControl, 'top-left');
-    });
-
-    map.on('contextmenu', (e) => {
-        if (fireMarker) {
-            fireMarker.remove();
-        }
-        fireMarker = new maplibregl.Marker({ element: createMarkerElement('🔥', 'fire-marker') })
-            .setLngLat(e.lngLat)
-            .addTo(map);
-
-        currentCommune = {
-            nom_standard: "Départ de feu",
-            code_postal: "",
-            longitude: e.lngLat.lng,
-            latitude: e.lngLat.lat
-        };
-        
-        updateSelectedCommune(currentCommune);
-    });
-}
-
-function addPermanentMarkers() {
-    permanentMarkers.forEach(marker => marker.remove());
-    permanentMarkers = [];
-    airports.forEach(airport => {
-        const isWater = waterAirports.has(airport.oaci);
-        const isDisabled = disabledAirports.has(airport.oaci);
-
-        let className = 'airport-marker-active';
-        let content = '🛬';
-        if (isWater) {
-            className = 'airport-marker-water';
-            content = '💧';
-        }
-        if (isDisabled) {
-            className = 'airport-marker-disabled';
-            content = '×';
-        }
-        
-        const el = createMarkerElement(content, `custom-marker-icon airport-marker-base ${className}`);
-        const marker = new maplibregl.Marker({ element: el })
-            .setLngLat([airport.lon, airport.lat])
-            .setPopup(createAirportPopup(airport))
-            .addTo(map);
-        permanentMarkers.push(marker);
-    });
-}
-
-function createAirportPopup(airport) {
-    const popupContent = document.createElement('div');
-    popupContent.className = 'airport-popup';
-    popupContent.innerHTML = `<strong>${airport.name} (${airport.oaci})</strong>`;
-    
-    const buttonsDiv = document.createElement('div');
-    buttonsDiv.className = 'popup-buttons';
-    
-    const waterBtn = document.createElement('button');
-    waterBtn.textContent = waterAirports.has(airport.oaci) ? 'Eau ❌' : 'Eau ✅';
-    waterBtn.className = 'water-btn';
-    waterBtn.onclick = () => {
-        toggleAirportState(airport.oaci, 'water');
-        marker.getPopup().remove();
-    };
-
-    const toggleBtn = document.createElement('button');
-    if (disabledAirports.has(airport.oaci)) {
-        toggleBtn.textContent = 'Activer';
-        toggleBtn.className = 'enable-btn';
-    } else {
-        toggleBtn.textContent = 'Désactiver';
-        toggleBtn.className = 'disable-btn';
-    }
-    toggleBtn.onclick = () => {
-        toggleAirportState(airport.oaci, 'disabled');
-        marker.getPopup().remove();
-    };
-
-    buttonsDiv.appendChild(waterBtn);
-    buttonsDiv.appendChild(toggleBtn);
-    popupContent.appendChild(buttonsDiv);
-
-    const marker = permanentMarkers.find(m => {
-        const lngLat = m.getLngLat();
-        return lngLat.lat === airport.lat && lngLat.lng === airport.lon;
-    });
-
-    return new maplibregl.Popup({ offset: 25, closeButton: false }).setDOMContent(popupContent);
+    if (map) return;
+    map = L.map('map', { attributionControl: false, zoomControl: false }).setView([46.6, 2.2], 5.5);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    searchToggleControl = new SearchToggleControl().addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+    permanentAirportLayer = L.layerGroup().addTo(map);
+    routesLayer = L.layerGroup().addTo(map);
+    drawPermanentAirportMarkers();
 }
 
 function setupEventListeners() {
     const searchInput = document.getElementById('search-input');
-    const resultsList = document.getElementById('results-list');
-    const clearSearch = document.getElementById('clear-search');
+    const clearSearchBtn = document.getElementById('clear-search');
     const airportCountInput = document.getElementById('airport-count');
+    const resultsList = document.getElementById('results-list');
+    const offlineStatus = document.getElementById('offline-status');
 
     searchInput.addEventListener('input', () => {
-        const query = simplifyString(searchInput.value);
-        clearSearch.style.display = searchInput.value ? 'block' : 'none';
-        if (query.length < 2) {
+        const rawSearch = searchInput.value;
+        clearSearchBtn.style.display = rawSearch.length > 0 ? 'block' : 'none';
+    
+        let departmentFilter = null;
+        let searchTerm = rawSearch;
+        const depRegex = /\s(\d{1,3}|2A|2B)$/i;
+        const match = rawSearch.match(depRegex);
+    
+        if (match) {
+            departmentFilter = match[1].length === 1 ? '0' + match[1] : match[1].toUpperCase();
+            searchTerm = rawSearch.substring(0, match.index).trim();
+        }
+    
+        const simplifiedSearch = simplifyString(searchTerm);
+    
+        if (simplifiedSearch.length < 2) {
             resultsList.style.display = 'none';
             return;
         }
-        const filtered = allCommunes.filter(c => c.normalized_name.includes(query)).slice(0, 50);
-        displayResults(filtered);
+    
+        const searchWords = simplifiedSearch.split(' ').filter(Boolean);
+    
+        const communesToSearch = departmentFilter
+            ? allCommunes.filter(c => c.dep_code === departmentFilter)
+            : allCommunes;
+    
+        const scoredResults = communesToSearch.map(c => {
+            let totalScore = 0;
+            let wordsFound = 0;
+    
+            for (const word of searchWords) {
+                let bestWordScore = 999;
+                const wordSoundex = soundex(word);
+    
+                for (let i = 0; i < c.search_parts.length; i++) {
+                    const communePart = c.search_parts[i];
+                    const communeSoundex = c.soundex_parts[i];
+                    let currentScore = 999;
+    
+                    if (communePart.startsWith(word)) {
+                        currentScore = 0;
+                    } else if (communeSoundex === wordSoundex) {
+                        currentScore = 1;
+                    } else {
+                        const dist = levenshteinDistance(word, communePart);
+                        if (dist <= Math.floor(word.length / 3) + 1) {
+                            currentScore = 2 + dist;
+                        }
+                    }
+                    
+                    if (currentScore < bestWordScore) {
+                        bestWordScore = currentScore;
+                    }
+                }
+    
+                if (bestWordScore < 999) {
+                    wordsFound++;
+                    totalScore += bestWordScore;
+                }
+            }
+    
+            const finalScore = (wordsFound === searchWords.length) ? totalScore : 999;
+    
+            return { ...c, score: finalScore };
+        }).filter(c => c.score < 999);
+    
+        scoredResults.sort((a, b) => a.score - b.score || a.nom_standard.length - b.nom_standard.length);
+    
+        displayResults(scoredResults.slice(0, 10));
     });
 
-    clearSearch.addEventListener('click', () => {
+    clearSearchBtn.addEventListener('click', () => {
         searchInput.value = '';
         resultsList.style.display = 'none';
-        clearSearch.style.display = 'none';
+        clearSearchBtn.style.display = 'none';
+        routesLayer.clearLayers();
+        currentCommune = null;
+        map.setView([46.6, 2.2], 5.5);
     });
 
-    airportCountInput.addEventListener('change', () => {
-        if (currentCommune) updateDynamicElements(currentCommune);
-        saveState();
+    airportCountInput.addEventListener('input', () => {
+        if (currentCommune) displayCommuneDetails(currentCommune, false);
+    });
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        offlineStatus.style.display = 'none';
+    } else {
+        offlineStatus.textContent = 'Initialisation du mode hors ligne...';
+    }
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (navigator.serviceWorker.controller) {
+            offlineStatus.style.display = 'none';
+        }
     });
 }
 
-function displayResults(communes) {
+function displayResults(results) {
     const resultsList = document.getElementById('results-list');
     resultsList.innerHTML = '';
-    if (communes.length === 0) {
-        resultsList.style.display = 'none';
-        return;
-    }
-    communes.forEach(commune => {
-        const li = document.createElement('li');
-        li.textContent = `${commune.nom_standard} (${commune.code_postal})`;
-        li.addEventListener('click', () => {
-            updateSelectedCommune(commune);
-            resultsList.style.display = 'none';
-            document.getElementById('search-input').value = '';
-            document.getElementById('clear-search').style.display = 'none';
-        });
-        resultsList.appendChild(li);
-    });
-    resultsList.style.display = 'block';
-}
-
-function updateSelectedCommune(commune) {
-    currentCommune = commune;
-    if (fireMarker) {
-        if (commune.nom_standard !== "Départ de feu") {
-            fireMarker.remove();
-            fireMarker = null;
-        }
-    }
-    
-    // Ajout ou mise à jour du marqueur de la commune
-    const communeMarkerEl = createMarkerElement('📍', 'custom-marker-icon commune-marker');
-    // Supprimer l'ancien marqueur de commune s'il existe
-    const existingCommuneMarker = permanentMarkers.find(m => m.getElement().classList.contains('commune-marker'));
-    if (existingCommuneMarker) {
-        existingCommuneMarker.remove();
-        permanentMarkers = permanentMarkers.filter(m => m !== existingCommuneMarker);
-    }
-    
-    if (commune.nom_standard !== "Départ de feu") {
-        const marker = new maplibregl.Marker({element: communeMarkerEl})
-            .setLngLat([commune.longitude, commune.latitude])
-            .addTo(map);
-        permanentMarkers.push(marker);
-    }
-
-    map.flyTo({
-        center: [commune.longitude, commune.latitude],
-        zoom: 9,
-        essential: true
-    });
-    searchToggleControl.updateCommuneName(commune.nom_standard);
-    updateDynamicElements(commune);
-    saveState();
-}
-
-
-function updateDynamicElements(commune) {
-    clearDynamicElements();
-    
-    const communeLat = commune.latitude;
-    const communeLon = commune.longitude;
-    const airportCount = parseInt(document.getElementById('airport-count').value, 10);
-    
-    const activeAirports = airports.filter(a => !disabledAirports.has(a.oaci));
-
-    activeAirports.forEach(airport => {
-        airport.distance = calculateDistanceInNm(communeLat, communeLon, airport.lat, airport.lon);
-    });
-
-    activeAirports.sort((a, b) => a.distance - b.distance);
-    const nearestAirports = activeAirports.slice(0, airportCount);
-
-    const sourceData = {
-        type: 'FeatureCollection',
-        features: []
-    };
-
-    nearestAirports.forEach(airport => {
-        const magneticHeading = calculateMagneticHeading(communeLat, communeLon, airport.lat, airport.lon);
-        const headingStr = Math.round(magneticHeading).toString().padStart(3, '0');
-        const distanceInNm = airport.distance;
-        
-        const lineFeature = {
-            type: 'Feature',
-            geometry: {
-                type: 'LineString',
-                coordinates: [[communeLon, communeLat], [airport.lon, airport.lat]]
-            },
-            properties: {
-                label: `${distanceInNm.toFixed(1)} Nm / ${headingStr}°M`
-            }
-        };
-        sourceData.features.push(lineFeature);
-    });
-
-    if (map.getSource('dynamic-lines')) {
-        map.getSource('dynamic-lines').setData(sourceData);
-    } else {
-        map.addSource('dynamic-lines', {
-            type: 'geojson',
-            data: sourceData
-        });
-        map.addLayer({
-            id: 'dynamic-lines-layer',
-            type: 'line',
-            source: 'dynamic-lines',
-            paint: {
-                'line-color': 'red',
-                'line-width': 2,
-                'line-dasharray': [5, 5]
-            }
-        });
-        map.addLayer({
-            id: 'dynamic-lines-labels',
-            type: 'symbol',
-            source: 'dynamic-lines',
-            layout: {
-                'symbol-placement': 'line-center',
-                'text-field': ['get', 'label'],
-                'text-size': 14,
-                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                'text-offset': [0, -0.8]
-            },
-            paint: {
-                'text-color': '#333',
-                'text-halo-color': 'rgba(255, 255, 255, 0.9)',
-                'text-halo-width': 2
-            }
-        });
-    }
-}
-
-
-function clearDynamicElements() {
-    if (map.getSource('dynamic-lines')) {
-        map.getSource('dynamic-lines').setData({type: 'FeatureCollection', features: []});
-    }
-}
-
-
-function toggleAirportState(oaci, type) {
-    const airportSet = (type === 'water') ? waterAirports : disabledAirports;
-    if (airportSet.has(oaci)) {
-        airportSet.delete(oaci);
-    } else {
-        airportSet.add(oaci);
-    }
-    addPermanentMarkers();
-    if (currentCommune) updateDynamicElements(currentCommune);
-    saveState();
-}
-
-
-function createMarkerElement(content, className) {
-    const el = document.createElement('div');
-    el.innerHTML = content;
-    el.className = className;
-    return el;
-}
-
-function saveState() {
-    const state = {
-        lastCommune: currentCommune,
-        airportCount: document.getElementById('airport-count').value,
-        disabledAirports: Array.from(disabledAirports),
-        waterAirports: Array.from(waterAirports)
-    };
-    localStorage.setItem('navigationMapState', JSON.stringify(state));
-}
-
-function loadState() {
-    const state = JSON.parse(localStorage.getItem('navigationMapState'));
-    if (state) {
-        document.getElementById('airport-count').value = state.airportCount || '3';
-        disabledAirports = new Set(state.disabledAirports || []);
-        waterAirports = new Set(state.waterAirports || []);
-        if (state.lastCommune && map) {
-            // Delay updating commune until map is loaded
-            map.on('load', () => updateSelectedCommune(state.lastCommune));
-        } else if (state.lastCommune) {
-            // if map is not ready yet, queue it.
-            const checkMap = setInterval(() => {
-                if (map) {
-                    map.on('load', () => updateSelectedCommune(state.lastCommune));
-                    clearInterval(checkMap);
+    if (results.length > 0) {
+        resultsList.style.display = 'block';
+        results.forEach(c => {
+            const li = document.createElement('li');
+            li.textContent = `${c.nom_standard} (${c.dep_nom} - ${c.dep_code})`;
+            li.addEventListener('click', () => {
+                currentCommune = c;
+                displayCommuneDetails(c);
+                document.getElementById('ui-overlay').style.display = 'none';
+                if (searchToggleControl) {
+                    searchToggleControl.setName(c.nom_standard);
+                    searchToggleControl.communeDisplay.style.display = 'block';
                 }
-            }, 100);
-        }
+            });
+            resultsList.appendChild(li);
+        });
+    } else {
+        resultsList.style.display = 'none';
     }
 }
 
-async function checkOfflineStatus() {
-    const offlineStatusDiv = document.getElementById('offline-status');
-    const requiredUrls = [
-        './',
-        './index.html',
-        './style.css',
-        './script.js',
-        './maplibre-gl.js',
-        './maplibre-gl.css',
-        './protomaps.min.js',
-        './style.json',
-        'https://map-assets.s3.amazonaws.com/communes.json',
-        'https://map-assets.s3.amazonaws.com/france.pmtiles'
-    ];
-    
-    try {
-        const cache = await caches.open('communes-vector-tile-cache-v4');
-        const appCache = await caches.open('communes-app-cache-v32'); // <-- Mettre à jour avec la nouvelle version du cache
-        
-        let allOk = true;
-        for (const url of requiredUrls) {
-            const request = new Request(url, { cache: 'reload' });
-            let response = await appCache.match(request.url);
-            if (!response) {
-                response = await cache.match(request.url);
-            }
-            if (!response) {
-                allOk = false;
-                console.warn(`Ressource non trouvée dans le cache : ${url}`);
-                break;
-            }
-        }
+function displayCommuneDetails(commune, shouldFitBounds = true) {
+    routesLayer.clearLayers();
+    const { latitude_mairie: lat, longitude_mairie: lon, nom_standard: name } = commune;
+    const searchInput = document.getElementById('search-input');
+    const resultsList = document.getElementById('results-list');
+    const clearSearchBtn = document.getElementById('clear-search');
+    const airportCountInput = document.getElementById('airport-count');
 
-        if (allOk) {
-            offlineStatusDiv.textContent = '✅ Mode hors-ligne prêt';
-            offlineStatusDiv.className = 'ready';
-        } else {
-            offlineStatusDiv.textContent = '⚠️ Mode hors-ligne incomplet';
-            offlineStatusDiv.className = '';
-        }
-    } catch (e) {
-        offlineStatusDiv.textContent = '❌ Erreur cache';
-        offlineStatusDiv.className = '';
-        console.error("Erreur lors de la vérification du cache", e);
+    searchInput.value = name;
+    resultsList.style.display = 'none';
+    clearSearchBtn.style.display = 'block';
+
+    const numAirports = parseInt(airportCountInput.value, 10);
+    const closestAirports = getClosestAirports(lat, lon, numAirports);
+    const allPoints = [[lat, lon]];
+
+    const fireIcon = L.divIcon({ className: 'custom-marker-icon fire-marker', html: '🔥' });
+    L.marker([lat, lon], { icon: fireIcon }).bindPopup(`<b>${name}</b><br>${convertToDMM(lat, 'lat')}<br>${convertToDMM(lon, 'lon')}`).addTo(routesLayer);
+    
+    closestAirports.forEach(ap => {
+        allPoints.push([ap.lat, ap.lon]);
+        drawRoute([lat, lon], [ap.lat, ap.lon], ap.oaci);
+    });
+    
+    // <<<=== BLOC DE GÉOLOCALISATION RESTAURÉ CI-DESSOUS ===>>>
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const { latitude: userLat, longitude: userLon } = pos.coords;
+                allPoints.push([userLat, userLon]);
+                const userIcon = L.divIcon({ className: 'custom-marker-icon user-marker', html: '👤' });
+                L.marker([userLat, userLon], { icon: userIcon }).bindPopup('Votre position').addTo(routesLayer);
+                drawRoute([userLat, userLon], [lat, lon], null, true); // Le fameux trait rouge
+                if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
+            },
+            () => { // En cas de refus ou d'erreur de géolocalisation
+                if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
+            }
+        );
+    } else { // Si le navigateur ne supporte pas la géolocalisation
+        if (shouldFitBounds) map.fitBounds(L.latLngBounds(allPoints).pad(0.3));
     }
+}
+
+function drawRoute(startLatLng, endLatLng, oaci = null, isUserRoute = false) {
+    const distance = calculateDistanceInNm(startLatLng[0], startLatLng[1], endLatLng[0], endLatLng[1]);
+    const labelText = oaci ? `<b>${oaci}</b><br>${Math.round(distance)} Nm` : `${Math.round(distance)} Nm`;
+
+    const polyline = L.polyline([startLatLng, endLatLng], {
+        color: isUserRoute ? 'var(--secondary-color)' : 'var(--primary-color)',
+        weight: 3,
+        opacity: 0.8,
+        dashArray: isUserRoute ? '5, 10' : ''
+    }).addTo(routesLayer);
+
+    if (isUserRoute) {
+        polyline.bindTooltip(labelText, {
+            permanent: true,
+            direction: 'center',
+            className: 'route-tooltip',
+            sticky: true
+        });
+    } else if (oaci) {
+        L.tooltip({
+            permanent: true,
+            direction: 'right',
+            offset: [10, 0],
+            className: 'route-tooltip'
+        })
+        .setLatLng(endLatLng)
+        .setContent(labelText)
+        .addTo(routesLayer);
+    }
+}
+
+function getClosestAirports(lat, lon, count) {
+    return airports.filter(ap => !disabledAirports.has(ap.oaci)).map(ap => ({ ...ap, distance: calculateDistanceInNm(lat, lon, ap.lat, ap.lon) })).sort((a, b) => a.distance - b.distance).slice(0, count);
+}
+
+function refreshUI() {
+    drawPermanentAirportMarkers();
+    if (currentCommune) displayCommuneDetails(currentCommune, false);
+}
+
+function drawPermanentAirportMarkers() {
+    permanentAirportLayer.clearLayers();
+    airports.forEach(airport => {
+        const isDisabled = disabledAirports.has(airport.oaci);
+        const isWater = waterAirports.has(airport.oaci);
+        let iconClass = 'custom-marker-icon airport-marker-base ';
+        let iconHTML = '✈️';
+        if (isDisabled) {
+            iconClass += 'airport-marker-disabled';
+            iconHTML = '<b>+</b>';
+        } else if (isWater) {
+            iconClass += 'airport-marker-water';
+            iconHTML = '💧';
+        } else {
+            iconClass += 'airport-marker-active';
+        }
+        const icon = L.divIcon({ className: iconClass, html: iconHTML });
+        const marker = L.marker([airport.lat, airport.lon], { icon: icon });
+        const disableButtonText = isDisabled ? 'Activer' : 'Désactiver';
+        const disableButtonClass = isDisabled ? 'enable-btn' : 'disable-btn';
+        marker.bindPopup(`<div class="airport-popup"><b>${airport.oaci}</b><br>${airport.name}<div class="popup-buttons"><button class="water-btn" onclick="window.toggleWater('${airport.oaci}')">Eau</button><button class="${disableButtonClass}" onclick="window.toggleAirport('${airport.oaci}')">${disableButtonText}</button></div></div>`);
+        marker.addTo(permanentAirportLayer);
+    });
+}
+
+const loadState = () => {
+    const savedDisabled = localStorage.getItem('disabled_airports');
+    if (savedDisabled) disabledAirports = new Set(JSON.parse(savedDisabled));
+    const savedWater = localStorage.getItem('water_airports');
+    if (savedWater) waterAirports = new Set(JSON.parse(savedWater));
+};
+
+const saveState = () => {
+    localStorage.setItem('disabled_airports', JSON.stringify([...disabledAirports]));
+    localStorage.setItem('water_airports', JSON.stringify([...waterAirports]));
+};
+
+window.toggleAirport = (oaci) => {
+    if (disabledAirports.has(oaci)) disabledAirports.delete(oaci);
+    else {
+        disabledAirports.add(oaci);
+        waterAirports.delete(oaci);
+    }
+    saveState();
+    refreshUI();
+};
+
+window.toggleWater = (oaci) => {
+    if (waterAirports.has(oaci)) waterAirports.delete(oaci);
+    else {
+        waterAirports.add(oaci);
+        disabledAirports.delete(oaci);
+    }
+    saveState();
+    refreshUI();
+};
+
+// =========================================================================
+// CONTRÔLE LEAFLET PERSONNALISÉ (pour la loupe)
+// =========================================================================
+const SearchToggleControl = L.Control.extend({
+    options: {
+        position: 'topleft'
+    },
+    onAdd: function (map) {
+        const mainContainer = L.DomUtil.create('div', 'leaflet-control');
+        const topBar = L.DomUtil.create('div', 'leaflet-bar search-toggle-container', mainContainer);
+        this.toggleButton = L.DomUtil.create('a', 'search-toggle-button', topBar);
+        this.toggleButton.innerHTML = '🔍';
+        this.toggleButton.href = '#';
+        this.communeDisplay = L.DomUtil.create('div', 'commune-display-control', topBar);
+        const versionDisplay = L.DomUtil.create('div', 'version-display', mainContainer);
+        versionDisplay.innerText = 'v1.0'; // <<<=== VERSION MISE À JOUR ICI ===>>>
+        L.DomEvent.disableClickPropagation(mainContainer);
+        L.DomEvent.on(this.toggleButton, 'click', L.DomEvent.stop);
+        L.DomEvent.on(this.toggleButton, 'click', () => {
+            const uiOverlay = document.getElementById('ui-overlay');
+            const isHidden = uiOverlay.style.display === 'none';
+            if (isHidden) {
+                uiOverlay.style.display = 'block';
+                this.communeDisplay.style.display = 'none';
+            } else {
+                uiOverlay.style.display = 'none';
+                if (this.communeDisplay.textContent) {
+                    this.communeDisplay.style.display = 'block';
+                }
+            }
+        });
+        return mainContainer;
+    },
+    setName: function(name) {
+        this.communeDisplay.textContent = name;
+    }
+});
+
+// =========================================================================
+// ALGORITHME PHONÉTIQUE SOUNDEX
+// =========================================================================
+function soundex(s) {
+    if (!s) return '';
+    const a = s.toLowerCase().split('');
+    const f = a.shift();
+    if (!f) return '';
+    let r = '';
+    const codes = {
+        a: '', e: '', i: '', o: '', u: '',
+        b: 1, f: 1, p: 1, v: 1,
+        c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
+        d: 3, t: 3,
+        l: 4,
+        m: 5, n: 5,
+        r: 6
+    };
+    r = f + a.map(v => codes[v]).filter((v, i, a) => (i === 0) ? v !== codes[f] : v !== a[i - 1]).join('');
+    return (r + '000').slice(0, 4).toUpperCase();
 }
