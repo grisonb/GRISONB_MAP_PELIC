@@ -1,6 +1,6 @@
 // --- FICHIER sw.js POUR LA VERSION STABLE ---
 
-const APP_CACHE_NAME = 'communes-app-cache-v1'; // Version stable
+const APP_CACHE_NAME = 'communes-app-cache-v2'; // Version stable
 const TILE_CACHE_NAME = 'communes-tile-cache-v1';
 const DATA_CACHE_NAME = 'communes-data-cache-v1';
 
