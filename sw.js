@@ -1,6 +1,6 @@
-// --- FICHIER sw.js COMPLET ET CORRIGÉ ---
+// --- FICHIER sw.js AVEC suncalc.js ---
 
-const APP_CACHE_NAME = 'communes-app-cache-v4'; // Incrémentez si vous aviez déjà v2
+const APP_CACHE_NAME = 'communes-app-cache-v38'; // Version pour suncalc
 const TILE_CACHE_NAME = 'communes-tile-cache-v1';
 const DATA_CACHE_NAME = 'communes-data-cache-v1';
 
@@ -11,7 +11,8 @@ const APP_SHELL_URLS = [
     './script.js',
     './leaflet.min.js',
     './leaflet.css',
-    './manifest.json'
+    './manifest.json',
+    './suncalc.js' // NOUVEAU FICHIER AJOUTÉ À LA LISTE
 ];
 
 const DATA_URLS = [
@@ -43,7 +44,6 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const requestUrl = new URL(event.request.url);
 
-    // Stratégie pour les tuiles (inchangée, elle est correcte)
     if (requestUrl.hostname.includes('tile.openstreetmap.org')) {
         event.respondWith(
             caches.open(TILE_CACHE_NAME).then(cache => {
@@ -53,45 +53,25 @@ self.addEventListener('fetch', event => {
                             cache.put(event.request, networkResponse.clone());
                         }
                         return networkResponse;
-                    }).catch(err => {
-                        // Si le réseau échoue, on ne fait rien, on a déjà servi le cache si possible
-                        console.warn(`[SW] Échec du fetch pour la tuile : ${event.request.url}`, err);
-                    });
+                    }).catch(err => {});
                     return cachedResponse || fetchPromise;
                 });
             })
         );
         return;
     }
-
-    // Stratégie pour le reste de l'application (CORRIGÉE AVEC GESTION D'ERREUR)
+    
     event.respondWith(
         caches.match(event.request)
             .then(cachedResponse => {
-                // Si la ressource est dans le cache, on la sert. C'est le cas nominal.
                 if (cachedResponse) {
                     return cachedResponse;
                 }
-
-                // Si elle n'est pas dans le cache, on tente de la récupérer sur le réseau.
                 return fetch(event.request).catch(error => {
-                    // --- C'EST L'AJOUT CRUCIAL ---
-                    // Cette partie s'exécute si le fetch échoue (ex: hors ligne).
-                    console.log(`[SW] Échec du fetch, l'appareil est probablement hors ligne. URL: ${event.request.url}`);
-
-                    // Si la requête qui a échoué était une requête de navigation...
                     if (event.request.mode === 'navigate') {
-                        // ...on renvoie la page d'accueil de secours.
                         return caches.match('./index.html');
                     }
-                    
-                    // Pour les autres types de requêtes qui échouent (images, etc.),
-                    // on peut renvoyer une réponse d'erreur générique pour ne pas planter.
-                    // Renvoie une réponse vide avec un statut 404.
-                    return new Response('', {
-                        status: 404,
-                        statusText: 'Not Found'
-                    });
+                    return new Response('', { status: 404, statusText: 'Not Found' });
                 });
             })
     );
