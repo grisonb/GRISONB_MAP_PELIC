@@ -1,8 +1,8 @@
-// --- FICHIER sw.js AVEC suncalc.js ---
+// --- FICHIER sw.js ---
 
-const APP_CACHE_NAME = 'communes-app-cache-v38'; // Version pour suncalc
-const TILE_CACHE_NAME = 'communes-tile-cache-v1';
+const APP_CACHE_NAME = 'communes-app-cache-v68'; // Version stable 4.0
 const DATA_CACHE_NAME = 'communes-data-cache-v1';
+const TILE_CACHE_NAME = 'communes-tile-cache-v1'; // Pour le cache de navigation normal
 
 const APP_SHELL_URLS = [
     './',
@@ -12,7 +12,7 @@ const APP_SHELL_URLS = [
     './leaflet.min.js',
     './leaflet.css',
     './manifest.json',
-    './suncalc.js' // NOUVEAU FICHIER AJOUTÉ À LA LISTE
+    './suncalc.js'
 ];
 
 const DATA_URLS = [
@@ -33,7 +33,7 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(cacheNames => Promise.all(
             cacheNames.map(cacheName => {
-                if (cacheName !== APP_CACHE_NAME && cacheName !== TILE_CACHE_NAME && cacheName !== DATA_CACHE_NAME) {
+                if (cacheName !== APP_CACHE_NAME && cacheName !== DATA_CACHE_NAME && cacheName !== TILE_CACHE_NAME) {
                     return caches.delete(cacheName);
                 }
             })
@@ -53,7 +53,7 @@ self.addEventListener('fetch', event => {
                             cache.put(event.request, networkResponse.clone());
                         }
                         return networkResponse;
-                    }).catch(err => {});
+                    });
                     return cachedResponse || fetchPromise;
                 });
             })
@@ -64,14 +64,10 @@ self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request)
             .then(cachedResponse => {
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-                return fetch(event.request).catch(error => {
+                return cachedResponse || fetch(event.request).catch(error => {
                     if (event.request.mode === 'navigate') {
                         return caches.match('./index.html');
                     }
-                    return new Response('', { status: 404, statusText: 'Not Found' });
                 });
             })
     );
