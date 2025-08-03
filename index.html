@@ -50,6 +50,7 @@
                     <input type="text" id="search-input" placeholder="Rechercher une commune..." autocomplete="off">
                     <span id="clear-search">×</span>
                 </div>
+                <button id="live-gps-button" title="Activer/Désactiver le suivi GPS">🛰️</button>
                 <button id="gps-feu-button" title="Créer un feu à ma position">🎯</button>
                 <div class="airport-controls">
                     <label for="airport-count">Nbr Pélic.</label>
@@ -57,6 +58,13 @@
                 </div>
             </div>
             <ul id="results-list" style="display: none;"></ul>
+            
+            <div class="extra-controls">
+                <button id="lftw-route-button" class="toggle-button active" title="Afficher/Masquer la route vers LFTW">
+                    Route LFTW
+                </button>
+            </div>
+
             <div id="offline-status"></div>
         </div>
     </div>
