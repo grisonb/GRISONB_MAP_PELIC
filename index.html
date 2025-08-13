@@ -10,17 +10,19 @@
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').then(reg => {
-                    console.log('Service Worker enregistré:', reg);
-                }).catch(err => {
-                    console.log('Erreur enregistrement Service Worker:', err);
-                });
-            });
-        }
-    </script>
+    <!-- 
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').then(registration => {
+        console.log('SW enregistré');
+      }).catch(registrationError => {
+        console.log('Erreur SW', registrationError);
+      });
+    });
+  }
+</script>
+-->
 </head>
 <body>
     <div id="map"></div>
