@@ -118,7 +118,7 @@ function setupEventListeners() {
     if (mainActionButtons) {
         const versionDisplay = document.createElement('div');
         versionDisplay.className = 'version-display';
-        versionDisplay.innerText = 'v2.1.2';
+        versionDisplay.innerText = 'BETA GSN';
         mainActionButtons.appendChild(versionDisplay);
     }
 
